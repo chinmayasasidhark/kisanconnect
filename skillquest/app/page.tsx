@@ -1,21 +1,69 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Home() {
 
-  async function addGoal(goalName: string) {
-    const { data, error } = await supabase
-      .from('goals')
-      .insert([
-        {
-          goal_name: goalName,
-          readiness: 0
-        }
-      ])
+  const [goals, setGoals] = useState<any[]>([])
+  const [gaps, setGaps] = useState<any[]>([])
+  const [quests, setQuests] = useState<any[]>([])
 
-    console.log(data, error)
+  async function addGoal(goalName: string) {
+    const { data } = await supabase
+      .from('goals')
+      .insert([{ goal_name: goalName, readiness: 0 }])
+      .select()
+
+    if (data) {
+      const goalId = data[0].id
+
+      const { data: gapData } = await supabase.from('gaps').insert([
+        { goal_id: goalId, name: 'DSA', status: 'weak', priority: 'high' },
+        { goal_id: goalId, name: 'Projects', status: 'weak', priority: 'high' },
+        { goal_id: goalId, name: 'Core CS', status: 'weak', priority: 'medium' }
+      ]).select()
+
+      // create quests for each gap
+      if (gapData) {
+        for (let gap of gapData) {
+          await supabase.from('quests').insert([
+            { gap_id: gap.id, title: 'Complete 1 task', xp_reward: 10 },
+            { gap_id: gap.id, title: 'Practice basics', xp_reward: 20 }
+          ])
+        }
+      }
+    }
+
+    fetchGoals()
   }
+
+  async function fetchGoals() {
+    const { data } = await supabase.from('goals').select('*')
+    if (data) setGoals(data)
+  }
+
+  async function fetchGaps(goalId: string) {
+    const { data } = await supabase
+      .from('gaps')
+      .select('*')
+      .eq('goal_id', goalId)
+
+    if (data) setGaps(data)
+  }
+
+  async function fetchQuests(gapId: string) {
+    const { data } = await supabase
+      .from('quests')
+      .select('*')
+      .eq('gap_id', gapId)
+
+    if (data) setQuests(data)
+  }
+
+  useEffect(() => {
+    fetchGoals()
+  }, [])
 
   return (
     <div style={{ padding: 20 }}>
@@ -38,6 +86,51 @@ export default function Home() {
       <button onClick={() => addGoal("GATE Exam")}>
         GATE Exam
       </button>
+
+      <hr />
+
+      <h2>Your Goals</h2>
+
+      {goals.map((goal) => (
+        <div key={goal.id}>
+          👉 {goal.goal_name}
+
+          <button
+            style={{ marginLeft: 10 }}
+            onClick={() => fetchGaps(goal.id)}
+          >
+            View Gaps
+          </button>
+        </div>
+      ))}
+
+      <hr />
+
+      <h2>Gaps (Enemies)</h2>
+
+      {gaps.map((gap) => (
+        <div key={gap.id}>
+          ⚔️ {gap.name}
+
+          <button
+            style={{ marginLeft: 10 }}
+            onClick={() => fetchQuests(gap.id)}
+          >
+            View Quests
+          </button>
+        </div>
+      ))}
+
+      <hr />
+
+      <h2>Quests (Tasks)</h2>
+
+      {quests.map((quest) => (
+        <div key={quest.id}>
+          🧩 {quest.title} (+{quest.xp_reward} XP)
+        </div>
+      ))}
+
     </div>
   )
 }
