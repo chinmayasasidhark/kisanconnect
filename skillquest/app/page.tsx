@@ -8,6 +8,8 @@ export default function Home() {
   const [goals, setGoals] = useState<any[]>([])
   const [gaps, setGaps] = useState<any[]>([])
   const [quests, setQuests] = useState<any[]>([])
+  const [xp, setXp] = useState(0)
+  const [level, setLevel] = useState(1)
 
   async function addGoal(goalName: string) {
     const { data } = await supabase
@@ -24,7 +26,6 @@ export default function Home() {
         { goal_id: goalId, name: 'Core CS', status: 'weak', priority: 'medium' }
       ]).select()
 
-      // create quests for each gap
       if (gapData) {
         for (let gap of gapData) {
           await supabase.from('quests').insert([
@@ -61,6 +62,25 @@ export default function Home() {
     if (data) setQuests(data)
   }
 
+  async function completeQuest(quest: any) {
+    // mark as completed
+    await supabase
+      .from('quests')
+      .update({ status: 'completed' })
+      .eq('id', quest.id)
+
+    // update XP
+    const newXp = xp + quest.xp_reward
+    setXp(newXp)
+
+    // level logic
+    if (newXp >= level * 50) {
+      setLevel(level + 1)
+    }
+
+    fetchQuests(quest.gap_id)
+  }
+
   useEffect(() => {
     fetchGoals()
   }, [])
@@ -68,6 +88,8 @@ export default function Home() {
   return (
     <div style={{ padding: 20 }}>
       <h1>SkillQuest 🚀</h1>
+
+      <h2>Level: {level} | XP: {xp}</h2>
 
       <h2>Select Your Goal</h2>
 
@@ -95,10 +117,7 @@ export default function Home() {
         <div key={goal.id}>
           👉 {goal.goal_name}
 
-          <button
-            style={{ marginLeft: 10 }}
-            onClick={() => fetchGaps(goal.id)}
-          >
+          <button onClick={() => fetchGaps(goal.id)}>
             View Gaps
           </button>
         </div>
@@ -106,16 +125,13 @@ export default function Home() {
 
       <hr />
 
-      <h2>Gaps (Enemies)</h2>
+      <h2>Gaps</h2>
 
       {gaps.map((gap) => (
         <div key={gap.id}>
           ⚔️ {gap.name}
 
-          <button
-            style={{ marginLeft: 10 }}
-            onClick={() => fetchQuests(gap.id)}
-          >
+          <button onClick={() => fetchQuests(gap.id)}>
             View Quests
           </button>
         </div>
@@ -123,11 +139,24 @@ export default function Home() {
 
       <hr />
 
-      <h2>Quests (Tasks)</h2>
+      <h2>Quests</h2>
 
       {quests.map((quest) => (
         <div key={quest.id}>
           🧩 {quest.title} (+{quest.xp_reward} XP)
+
+          {quest.status !== 'completed' && (
+            <button
+              style={{ marginLeft: 10 }}
+              onClick={() => completeQuest(quest)}
+            >
+              Complete
+            </button>
+          )}
+
+          {quest.status === 'completed' && (
+            <span style={{ marginLeft: 10 }}>✅ Done</span>
+          )}
         </div>
       ))}
 
