@@ -62,23 +62,35 @@ export default function Home() {
     if (data) setQuests(data)
   }
 
-  async function completeQuest(quest: any) {
-    // mark as completed
-    await supabase
-      .from('quests')
-      .update({ status: 'completed' })
-      .eq('id', quest.id)
+  async function submitProof(quest: any) {
+    const input = document.getElementById(`proof-${quest.id}`) as HTMLInputElement
+    const proof = input?.value
 
-    // update XP
-    const newXp = xp + quest.xp_reward
-    setXp(newXp)
+    if (!proof) return alert("Enter proof ❌")
 
-    // level logic
-    if (newXp >= level * 50) {
-      setLevel(level + 1)
+    const res = await fetch('http://localhost:3000/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proof }),
+    })
+
+    const data = await res.json()
+
+    if (data.result?.toUpperCase().startsWith("YES")) {
+      await supabase
+        .from('quests')
+        .update({ status: 'completed' })
+        .eq('id', quest.id)
+
+      const newXp = xp + quest.xp_reward
+      setXp(newXp)
+
+      if (newXp >= level * 50) setLevel(level + 1)
+
+      fetchQuests(quest.gap_id)
+    } else {
+      alert("AI rejected ❌")
     }
-
-    fetchQuests(quest.gap_id)
   }
 
   useEffect(() => {
@@ -86,79 +98,82 @@ export default function Home() {
   }, [])
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>SkillQuest 🚀</h1>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
 
-      <h2>Level: {level} | XP: {xp}</h2>
+      <h1 className="text-3xl font-bold mb-4">🎮 SkillQuest</h1>
 
-      <h2>Select Your Goal</h2>
+      <div className="mb-6">
+        <p className="text-lg">Level: {level}</p>
+        <p className="text-lg">XP: {xp}</p>
+      </div>
 
-      <button onClick={() => addGoal("Software Job")}>
-        Software Job
-      </button>
+      {/* GOALS */}
+      <div className="mb-6">
+        <h2 className="text-xl mb-2">🎯 Select Goal</h2>
 
-      <br /><br />
-
-      <button onClick={() => addGoal("Internship")}>
-        Internship
-      </button>
-
-      <br /><br />
-
-      <button onClick={() => addGoal("GATE Exam")}>
-        GATE Exam
-      </button>
-
-      <hr />
-
-      <h2>Your Goals</h2>
-
-      {goals.map((goal) => (
-        <div key={goal.id}>
-          👉 {goal.goal_name}
-
-          <button onClick={() => fetchGaps(goal.id)}>
-            View Gaps
-          </button>
+        <div className="flex gap-4">
+          <button className="bg-blue-500 px-4 py-2 rounded" onClick={() => addGoal("Software Job")}>Software Job</button>
+          <button className="bg-green-500 px-4 py-2 rounded" onClick={() => addGoal("Internship")}>Internship</button>
+          <button className="bg-purple-500 px-4 py-2 rounded" onClick={() => addGoal("GATE Exam")}>GATE</button>
         </div>
-      ))}
+      </div>
 
-      <hr />
+      {/* GOALS LIST */}
+      <div className="mb-6">
+        <h2 className="text-xl mb-2">📌 Your Goals</h2>
 
-      <h2>Gaps</h2>
-
-      {gaps.map((gap) => (
-        <div key={gap.id}>
-          ⚔️ {gap.name}
-
-          <button onClick={() => fetchQuests(gap.id)}>
-            View Quests
-          </button>
+        <div className="grid grid-cols-2 gap-4">
+          {goals.map(goal => (
+            <div key={goal.id} className="bg-gray-800 p-4 rounded shadow">
+              <p>{goal.goal_name}</p>
+              <button className="mt-2 bg-yellow-500 px-3 py-1 rounded" onClick={() => fetchGaps(goal.id)}>View Gaps</button>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
 
-      <hr />
+      {/* GAPS */}
+      <div className="mb-6">
+        <h2 className="text-xl mb-2">⚔️ Gaps</h2>
 
-      <h2>Quests</h2>
-
-      {quests.map((quest) => (
-        <div key={quest.id}>
-          🧩 {quest.title} (+{quest.xp_reward} XP)
-
-          {quest.status !== 'completed' && (
-            <button
-              style={{ marginLeft: 10 }}
-              onClick={() => completeQuest(quest)}
-            >
-              Complete
-            </button>
-          )}
-
-          {quest.status === 'completed' && (
-            <span style={{ marginLeft: 10 }}>✅ Done</span>
-          )}
+        <div className="grid grid-cols-2 gap-4">
+          {gaps.map(gap => (
+            <div key={gap.id} className="bg-gray-800 p-4 rounded">
+              <p>{gap.name}</p>
+              <button className="mt-2 bg-red-500 px-3 py-1 rounded" onClick={() => fetchQuests(gap.id)}>View Quests</button>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      {/* QUESTS */}
+      <div>
+        <h2 className="text-xl mb-2">🧩 Quests</h2>
+
+        {quests.map(quest => (
+          <div key={quest.id} className="bg-gray-800 p-4 mb-3 rounded">
+            <p>{quest.title} (+{quest.xp_reward} XP)</p>
+
+            {quest.status !== 'completed' ? (
+              <>
+                <input
+                  className="mt-2 p-2 text-black"
+                  placeholder="Paste proof"
+                  id={`proof-${quest.id}`}
+                />
+                <button
+                  className="ml-2 bg-green-500 px-3 py-1 rounded"
+                  onClick={() => submitProof(quest)}
+                >
+                  Submit
+                </button>
+              </>
+            ) : (
+              <span className="text-green-400">✅ Completed</span>
+            )}
+          </div>
+        ))}
+      </div>
 
     </div>
   )
